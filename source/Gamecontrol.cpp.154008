@@ -1,0 +1,165 @@
+#include "Gamecontrol.h"
+#include "Ship.h"
+#include "Bullet.h"
+#include "spaceship.h"
+#include "Button.h"
+#include "Trace.h"
+#include <QGraphicsView>
+#include <QMessageBox>
+#include <QDebug>
+
+MyGame::MyGame(int argc,char *argv[]):QApplication(argc,argv){MyGame::ongoing=1;}
+
+GameOnce::GameOnce(int p,GameHolder *h):players(p),holder(h)
+{
+    MESSAGE::gamenow=this;
+    init();playit();
+}
+void GameOnce::init()
+{
+    MESSAGE::N=players;
+    MESSAGE::setScreen();
+    for(int i=0;i<MAXN;i++)ALIVE::Alive[i]=0;ALIVE::total=players;//qDebug()<<MyGame::ongoing;
+    //MESSAGE::gamenow=app;
+
+    MESSAGE::sce=scene=new QGraphicsScene();
+    scene->setSceneRect(-MESSAGE::wScene/2,-MESSAGE::hScene/2,MESSAGE::wScene,MESSAGE::hScene);
+
+    QPixmap *bg=new QPixmap(":/new/im/bg.jpg");
+    QPixmap BG=bg->scaled(100,100,Qt::KeepAspectRatio);
+    QGraphicsPixmapItem *pix=new QGraphicsPixmapItem(BG);
+    pix->setPos(-scene->width()/2,-scene->height());
+    scene->addItem(pix);
+
+    MyRect0 *cent=new MyRect0;  cent->setRect(-5,-5,10,10);   scene->addItem(cent);
+    QGraphicsRectItem *boundary=new QGraphicsRectItem;boundary->setRect(-MESSAGE::wScene/2,-MESSAGE::hScene/2,MESSAGE::wScene,MESSAGE::hScene);scene->addItem(boundary);
+    QGraphicsEllipseItem *inner=new QGraphicsEllipseItem;inner->setRect(-nearR,-nearR,2*nearR,2*nearR);    scene->addItem(inner);
+    //QGraphicsRectItem *ppp=new QGraphicsRectItem;ppp->setRect(0,0,40,40);ppp->setPos(0,0);scene->addItem(ppp);
+
+    Ship **ship=(Ship**)malloc(MAXN*sizeof(Ship*)),*ship2;//qDebug()<<(int)ship[5];
+    ALIVE::allships=ship;
+    vec X0=vec(0,startR),V0=vec(-ShipSpeed,0);
+    for(int i=1;i<=players;i++)
+    {
+        ship2  =new Ship(Rot(X0,2*i*PI/players),Rot(V0,2*i*PI/players),2*i*PI/players,1,color2[i],color1[i]);            scene->addItem(ship2);
+        ship[i]=new Ship(Rot(X0,2*i*PI/players),Rot(V0,2*i*PI/players),2*i*PI/players,1,color1[i],color2[i],ship2);      scene->addItem(ship[i]);
+        ALIVE::Alive[ship[i]->id=i]=1;
+        cent->addship(ship[i]);
+        ship[i]->txt.setText(i);scene->addItem(&(ship[i]->txt));
+        ship[i]->setkeyMap(0,0,0,0,0);
+        ship[i]->toi=players*1000;
+        if(i>4)ship[i]->zhuxi.w=2.5*PI;
+    }
+    ship[1]->setkeyMap(Qt::Key_Up,Qt::Key_Down,Qt::Key_Left,Qt::Key_Right,Qt::Key_Slash);
+    ship[2]->setkeyMap(Qt::Key_W,Qt::Key_S,Qt::Key_A,Qt::Key_D,Qt::Key_E);
+    if(players>=3)ship[3]->setkeyMap(Qt::Key_I,Qt::Key_K,Qt::Key_J,Qt::Key_L,Qt::Key_O);
+    if(players>=4)ship[4]->setkeyMap(Qt::Key_T,Qt::Key_G,Qt::Key_F,Qt::Key_H,Qt::Key_Y);
+
+    cent->setFlag(QGraphicsItem::ItemIsFocusable);
+    cent->setFocus();
+    controller=cent;
+};
+GameOnce::~GameOnce()
+{
+    delete(scene);//delete(view);qDebug()<<2;holder->checknext();
+}
+int GameOnce::playit()
+{
+    MESSAGE::vie=view=new QGraphicsView(scene);
+    view->showFullScreen();
+    view->show();
+    view->setAttribute(Qt::WA_DeleteOnClose);
+
+    connect(view,SIGNAL(destroyed()),this,SLOT(ended()));
+}
+void GameOnce::ended(){delete(this);}
+
+GameHolder::GameHolder(int p,int g):players(p),games(g),gamesleft(g){}
+GameHolder::GameHolder(const GameHolder& h):players(h.players),games(h.games),gamesleft(h.gamesleft){}
+GameHolder::~GameHolder(){MESSAGE::cen->gameon=0;}
+void GameHolder::checknext()
+{//qDebug()<<games;
+    if(MyGame::ongoing==0){delete(this);return;}
+    if(gamesleft--!=0)connect(new GameOnce(players,this),SIGNAL(destroyed()),this,SLOT(one_ended()));
+    else
+    {//qDebug()<<1;
+        QMessageBox::StandardButton reply=QMessageBox::warning(0,"Gameover","\tHAHAHA\t\t",QMessageBox::Yes|QMessageBox::No,QMessageBox::Yes);
+        if(reply==QMessageBox::Yes)(new GameHolder(players,games))->checknext();
+        delete(this);
+    }
+}
+void GameHolder::one_ended(){checknext();}
+
+Gamecenter::Gamecenter(MyGame *a):gameon(0),app(a){}
+int Gamecenter::startnewgame(){MyGame::ongoing=1;gameon=1;(new GameHolder(MESSAGE::nextN,2))->checknext();}
+int Gamecenter::exitwhole(){app->exit();}
+
+SpecialScene::SpecialScene(int w0,int h0):QGraphicsView(scene=new QGraphicsScene()),w(w0),h(h0)
+{
+    scene->setSceneRect(-w/2,-h/2,w,h);
+
+    setWindowFlags(Qt::FramelessWindowHint);
+    resize(scene->width()+20,scene->height()+20);
+    show();
+}
+SpecialScene::~SpecialScene(){delete(scene);}
+
+StartScene::StartScene(int w0,int h0):SpecialScene(w0,h0)
+{
+    Special::onsetting=0;
+
+    scene->setBackgroundBrush(QBrush(Qt::blue,Qt::SolidPattern));
+
+    QFont font("Hebrew",10,QFont::Bold);
+    font.setPixelSize(w/10);
+    font.setBold(true);
+    (sta=new MyRectButton(0,-h*0.3,w/2,h/4,NEWGAME ,Special::actor,"Start",   font))->addtoscene(scene);
+    (set=new MyRectButton(0,0,     w/2,h/4,SETTINGS,Special::actor,"Settings",font))->addtoscene(scene);
+    (qui=new MyRectButton(0,h*0.3, w/2,h/4,QUIT    ,Special::actor,"Quit",    font))->addtoscene(scene);
+}
+
+SettingScene::SettingScene(int w0,int h0):SpecialScene(w0,h0)
+{
+    Special::onsetting=1;
+    Special::sett=this;
+
+    QFont font("Hebrew",10,QFont::Bold);
+    font.setPixelSize(w/10);
+    font.setBold(true);
+    (pup=new MyRectButton(0,-h*0.3,w/2,h/4,ONEMORE,Special::actor,"+",font))->addtoscene(scene);
+    (pdo=new MyRectButton(0,0,     w/2,h/4,CONFIRM,Special::actor,"=",font))->addtoscene(scene);
+    (pnu=new MyRectButton(0,h*0.3, w/2,h/4,ONELESS,Special::actor,"-",font))->addtoscene(scene);
+    Special::n_pl=pdo;pdo->txt->setText(MESSAGE::nextN);
+
+    setAttribute(Qt::WA_DeleteOnClose);
+}
+SettingScene::~SettingScene(){delete(pup);delete(pdo);delete(pnu);Special::onsetting=0;}//qDebug()<<1;}
+void SettingScene::hidefordel(){hide();delete(this);}
+
+int ActionHolder::startsceneavailable(){return (MESSAGE::cen->gameon==0)&&(Special::onsetting==0);}
+ActionHolder::ActionHolder():a(0){}
+ActionHolder::~ActionHolder(){}
+void ActionHolder::connectact(MyRectButton *but,actype action)
+{
+    switch(action)
+    {
+    case NEWGAME:
+        connect(but,SIGNAL(clicked()),this,SLOT(newgame()));break;
+    case SETTINGS:
+        connect(but,SIGNAL(clicked()),this,SLOT(tosett()));break;
+    case QUIT:
+        connect(but,SIGNAL(clicked()),this,SLOT(quit()));break;
+    case ONEMORE:
+        connect(but,SIGNAL(clicked()),this,SLOT(onemore()));break;
+    case ONELESS:
+        connect(but,SIGNAL(clicked()),this,SLOT(oneless()));break;
+    case CONFIRM:
+        connect(but,SIGNAL(clicked()),this,SLOT(confirm()));break;
+    }
+}
+void ActionHolder::newgame(){if(startsceneavailable())MESSAGE::cen->startnewgame();}
+void ActionHolder::tosett(){if(startsceneavailable())new SettingScene();}
+void ActionHolder::quit(){if(startsceneavailable())MESSAGE::cen->exitwhole();}
+void ActionHolder::onemore(){MyRectButton *npl=Special::n_pl;npl->txt->setText(++MESSAGE::nextN);}
+void ActionHolder::oneless(){MyRectButton *npl=Special::n_pl;if(MESSAGE::nextN>2)npl->txt->setText(--MESSAGE::nextN);}
+void ActionHolder::confirm(){Special::sett->hidefordel();}

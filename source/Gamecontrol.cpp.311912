@@ -1,0 +1,74 @@
+#include "Gamecontrol.h"
+#include "Ship.h"
+#include "Bullet.h"
+#include "spaceship.h"
+#include "Gamecontrol.h"
+#include "Trace.h"
+#include <QGraphicsView>
+#include <QMessageBox>
+#include <QDebug>
+
+MyGame::MyGame(int argc,char *argv[]):QApplication(argc,argv){MyGame::ongoing=1;}
+
+GameOnce::GameOnce(int p,GameHolder *h):players(p),holder(h){init();playit();}
+void GameOnce::init()
+{
+    MESSAGE::N=players;
+    MESSAGE::setScreen();
+    for(int i=0;i<MAXN;i++)ALIVE::Alive[i]=0;ALIVE::total=players;//qDebug()<<MyGame::ongoing;
+    //MESSAGE::gamenow=app;
+
+    MESSAGE::sce=scene=new QGraphicsScene();
+    scene->setSceneRect(-MESSAGE::wScene/2,-MESSAGE::hScene/2,MESSAGE::wScene,MESSAGE::hScene);
+
+    MyRect0 *cent=new MyRect0;  cent->setRect(-5,-5,10,10);   scene->addItem(cent);
+    QGraphicsRectItem *boundary=new QGraphicsRectItem;boundary->setRect(-MESSAGE::wScene/2,-MESSAGE::hScene/2,MESSAGE::wScene,MESSAGE::hScene);scene->addItem(boundary);
+    QGraphicsEllipseItem *inner=new QGraphicsEllipseItem;inner->setRect(-nearR,-nearR,2*nearR,2*nearR);    scene->addItem(inner);
+    //QGraphicsRectItem *ppp=new QGraphicsRectItem;ppp->setRect(0,0,40,40);ppp->setPos(0,0);scene->addItem(ppp);
+
+    Ship **ship=(Ship**)malloc(MAXN*sizeof(Ship*)),*ship2;//qDebug()<<(int)ship[5];
+    ALIVE::allships=ship;
+    vec X0=vec(0,startR),V0=vec(-ShipSpeed,0);
+    for(int i=1;i<=players;i++)
+    {
+        ship2  =new Ship(Rot(X0,2*i*PI/players),Rot(V0,2*i*PI/players),2*i*PI/players,1,color2[i],color1[i]);            scene->addItem(ship2);
+        ship[i]=new Ship(Rot(X0,2*i*PI/players),Rot(V0,2*i*PI/players),2*i*PI/players,1,color1[i],color2[i],ship2);      scene->addItem(ship[i]);
+        ALIVE::Alive[ship[i]->id=i]=1;
+        cent->addship(ship[i]);
+        ship[i]->txt.setText(i);scene->addItem(&(ship[i]->txt));
+        ship[i]->setkeyMap(0,0,0,0,0);
+        ship[i]->toi=players*1000;
+        if(i>4)ship[i]->zhuxi.w=2.5*PI;
+    }
+    ship[1]->setkeyMap(Qt::Key_Up,Qt::Key_Down,Qt::Key_Left,Qt::Key_Right,Qt::Key_Slash);
+    ship[2]->setkeyMap(Qt::Key_W,Qt::Key_S,Qt::Key_A,Qt::Key_D,Qt::Key_E);
+    if(players>=3)ship[3]->setkeyMap(Qt::Key_I,Qt::Key_K,Qt::Key_J,Qt::Key_L,Qt::Key_O);
+    if(players>=4)ship[4]->setkeyMap(Qt::Key_T,Qt::Key_G,Qt::Key_F,Qt::Key_H,Qt::Key_Y);
+
+    cent->setFlag(QGraphicsItem::ItemIsFocusable);
+    cent->setFocus();
+    controller=cent;
+};
+GameOnce::~GameOnce()
+{
+    delete(scene);delete(view);
+}
+int GameOnce::playit()
+{
+    MESSAGE::vie=view=new QGraphicsView(scene);
+    view->showFullScreen();
+    view->show();
+}
+
+GameHolder::GameHolder(int p,int g):players(p),games(g){}
+GameHolder::GameHolder(const GameHolder& h):players(h.players),games(h.games){}
+void GameHolder::play()
+{
+    MyGame::ongoing=1;
+    for(int i=0;(i!=games)&&MyGame::ongoing;i++)new GameOnce(players,this);
+    QMessageBox::StandardButton reply=QMessageBox::warning(0,"Gameover","\tHAHAHA\t\t",QMessageBox::Yes|QMessageBox::No,QMessageBox::Yes);
+    if(reply==QMessageBox::Yes)GameHolder(*this).play();
+}
+
+Gamecenter::Gamecenter():gameon(0){}
+int Gamecenter::startnewgame(){GameHolder(2,1).play();}
